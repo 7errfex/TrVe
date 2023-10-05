@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "TrVe Parser",
+  "version": "1.0",
+  "description": "Capture real-time data from a website and send it to the background script.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "webRequest",
+    "downloads"
+    
+  ],
+  "host_permissions": [
+    "https://www.tradingview.com/*",
+    "https://charts-storage.tradingview.com/charts-storage/layout/*"
+  ],
+  "background": {
+    "service_worker": "background_script.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.tradingview.com/chart*"],
+      "js": ["content_script.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
