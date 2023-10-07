@@ -1,14 +1,45 @@
 extractedObjects = []
 replay = false
 const webAppUrl = "https://script.google.com/macros/s/"
+candles = []
 
-function getPrice(symbol, startTime, endTime){
-  //start and end time are epoch times
+function getCandles(symbol, startTime, endTime, interval){
   var amount = ((endTime - startTime)/60).toFixed(0)
-  fetch(`https://api.polygon.io/v2/aggs/ticker/C:${symbol}/range/1/minute/${startTime}/${endTime}?adjusted=true&sort=asc&limit=${amount}&apiKey=`).then(function(response) { return response.json()}).then(function (data) { console.log(data)})
+  fetch(`https://api.polygon.io/v2/aggs/ticker/C:${symbol}/range/${interval}/minute/${startTime * 1000}/${endTime * 1000}?adjusted=true&sort=asc&limit=${amount}&apiKey=y5ym_Wm2JPeHAE2eu9ZFm7EV2aDohHY8`).then(function(response) { return response.json()}).then(function (data) {
+    console.log(data)
+    candles = data.results
+  })
 }
 
+function getProfit(symbol, interval, startTime, endTime, entryPrice, stopLoss, target) {
+  let index = 0;
+  getCandles(symbol, startTime, endTime, interval)
+  for (let i = 0; i < candles.length; i++) {
+      const candle = candles[i];
+      index++;
 
+      if (entryPrice >= candle.l && entryPrice <= candle.h) {
+          const position = candles.slice(index);
+
+          for (let j = 0; j < position.length; j++) {
+              const posCandle = position[j];
+
+              if (stopLoss >= posCandle.l && stopLoss <= posCandle.h) {
+                  const profit = stopLoss - entryPrice;
+                  return profit;
+              } else if (target >= posCandle.l && target <= posCandle.h) {
+                  const profit = target - entryPrice;
+                  return profit;
+              } else if (j === position.length - 1) {
+                  const profit = posCandle.c - entryPrice;
+                  return profit;
+              }
+          }
+      }
+  }
+
+  return 0; // Default value if no profit condition is met
+}
 
 // Function to send the POST request
 function sendPostRequest(data) {
@@ -70,11 +101,13 @@ chrome.webRequest.onBeforeRequest.addListener(
     // Extract points and convert time to GMT
     extractedData.pointA = {
         price: sourceData.points[0].price,
-        time: new Date(sourceData.points[0].time_t * 1000).toUTCString()
+        time: new Date(sourceData.points[0].time_t * 1000).toUTCString(),
+        epochTime: sourceData.points[0].time_t
     };
     extractedData.pointB = {
         price: sourceData.points[1].price,
-        time: new Date(sourceData.points[1].time_t * 1000).toUTCString()
+        time: new Date(sourceData.points[1].time_t * 1000).toUTCString(),
+        epochTime: sourceData.points[1].time_t
     };
 
     console.log(extractedData);
@@ -83,11 +116,14 @@ chrome.webRequest.onBeforeRequest.addListener(
         id: extractedData.id,
         currency: extractedData.symbol,
         RRR: (extractedData.profitLevel / extractedData.stopLevel).toFixed(3),
-        entryPrice: extractedData.pointA.price,
-        stopLoss: extractedData.pointA.price - (extractedData.stopLevel * 0.00001),
-        targetPrice: extractedData.pointA.price + (extractedData.profitLevel * 0.00001),
+        entryPrice: extractedData.pointA.price.toFixed(4),
+        stopLoss: (extractedData.pointA.price - (extractedData.stopLevel * 0.00001)).toFixed(4),
+        targetPrice: (extractedData.pointA.price + (extractedData.profitLevel * 0.00001)).toFixed(4),
         startTime: extractedData.pointA.time,
-        endTime: extractedData.pointB.time
+        endTime: extractedData.pointB.time,
+        startEpochTime: extractedData.pointA.epochTime,
+        endEpochTime: extractedData.pointB.epochTime,
+        interval: extractedData.interval
     }
     console.log(parsedData)
     const index = extractedObjects.findIndex(obj => obj.id === parsedData.id);
